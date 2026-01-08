@@ -16,29 +16,36 @@ if 'datos_mapa' not in st.session_state:
 if 'titulo_mapa' not in st.session_state:
     st.session_state.titulo_mapa = ""
 
-# Estilo visual "Hacker"
+# --- ESTILO VISUAL CLARO (Profesional) ---
 st.markdown("""
     <style>
-    .main { background-color: #000000; color: #0f0; font-family: 'Courier New'; }
-    .stButton>button { width: 100%; border: 1px solid #0f0; background-color: black; color: #0f0; font-weight: bold; }
-    .stButton>button:hover { background-color: #0f0; color: black; box-shadow: 0 0 15px #0f0; }
-    .stDataFrame { border: 1px solid #0f0; }
-    h1, h2, h3 { color: #0f0 !important; text-shadow: 0 0 8px #0f0; }
-    [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #0f0; }
+    .main { background-color: #f8f9fa; color: #212529; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 5px; 
+        border: 1px solid #007bff; 
+        background-color: #ffffff; 
+        color: #007bff; 
+        font-weight: 500;
+        transition: 0.3s;
+    }
+    .stButton>button:hover { background-color: #007bff; color: white; }
+    h1, h2, h3 { color: #0056b3 !important; font-weight: bold; }
+    [data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #dee2e6; }
+    .stDataFrame { border: 1px solid #dee2e6; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("👤 SABANAS ANALYZER v1.8 - FINAL")
+st.title("📊 SABANAS ANALYZER v1.9")
+st.write("Herramienta de análisis geoespacial para registros telefónicos.")
 st.write("---")
 
 # --- CARGA DE DATOS ---
-uploaded_file = st.file_uploader("📂 SUBIR ARCHIVO EXCEL DE SABANAS", type=["xlsx", "xls"])
+uploaded_file = st.file_uploader("📂 Cargar Archivo Excel", type=["xlsx", "xls"])
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
-        # Guardar nombres originales para los títulos del popup antes de normalizar
-        columnas_originales = df.columns.tolist()
         df.columns = [str(c).strip().lower() for c in df.columns]
 
         # Mapeo de columnas automático (Emisor B, Receptor A)
@@ -67,11 +74,11 @@ if uploaded_file:
         df['longitud'] = pd.to_numeric(df['longitud'], errors='coerce')
 
         # --- PANEL LATERAL ---
-        st.sidebar.header("MENÚ DE ANÁLISIS")
+        st.sidebar.header("Opciones de Análisis")
         opcion = st.sidebar.radio("Módulos:", 
             ["Vista General", "Pernocta (23:00-06:00)", "Top Antenas", "Top Números Frecuentes", "Búsqueda Específica"])
 
-        if st.sidebar.button("🗑️ RESETEAR VISTA"):
+        if st.sidebar.button("🔄 Reiniciar Vista"):
             st.session_state.mostrar_mapa = False
             st.rerun()
 
@@ -96,32 +103,32 @@ if uploaded_file:
             if busqueda:
                 df_filtrado = df[df['linea_b'].str.contains(busqueda, na=False)].copy()
 
-        st.subheader(f"📊 RESULTADOS: {opcion}")
+        st.subheader(f"📊 Tabla de Datos: {opcion}")
         st.dataframe(df_filtrado, use_container_width=True)
 
         # --- EXPORTACIÓN ---
         st.write("---")
-        st.subheader("💾 EXPORTE INTELIGENCIA")
+        st.subheader("📦 Exportar Resultados")
         exp_col1, exp_col2, exp_col3 = st.columns(3)
 
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='xlsxwriter') as writer:
             df_filtrado.to_excel(writer, index=False, sheet_name='Resultados')
         
-        exp_col1.download_button("📥 DESCARGAR EXCEL FILTRADO", data=buffer_excel.getvalue(), 
-                                 file_name="reporte_sabana.xlsx", mime="application/vnd.ms-excel")
+        exp_col1.download_button("📥 Descargar Excel", data=buffer_excel.getvalue(), 
+                                 file_name="analisis_datos.xlsx", mime="application/vnd.ms-excel")
 
-        if exp_col2.button("🗺️ MAPEAR VISTA ACTUAL"):
+        if exp_col2.button("🗺️ Ver Mapa Filtrado"):
             st.session_state.datos_mapa = df_filtrado.copy()
-            st.session_state.titulo_mapa = f"MAPA: {opcion}"
+            st.session_state.titulo_mapa = f"Mapa de {opcion}"
             st.session_state.mostrar_mapa = True
 
-        if exp_col3.button("🌎 MAPA TODO"):
+        if exp_col3.button("🌎 Ver Mapa Completo"):
             st.session_state.datos_mapa = df.copy()
-            st.session_state.titulo_mapa = "MAPA: REGISTROS TOTALES"
+            st.session_state.titulo_mapa = "Mapa de Registros Totales"
             st.session_state.mostrar_mapa = True
 
-        # --- RENDERIZADO DEL MAPA CON TODOS LOS TÍTULOS ---
+        # --- RENDERIZADO DEL MAPA ---
         if st.session_state.mostrar_mapa and st.session_state.datos_mapa is not None:
             df_m = st.session_state.datos_mapa.dropna(subset=['latitud', 'longitud'])
             
@@ -130,24 +137,22 @@ if uploaded_file:
                 st.subheader(st.session_state.titulo_mapa)
                 
                 centro = [df_m['latitud'].mean(), df_m['longitud'].mean()]
-                m = folium.Map(location=centro, zoom_start=12, tiles="CartoDB dark_matter")
+                
+                # MAPA BLANCO (ESTILO GOOGLE MAPS / OPENSTREETMAP)
+                m = folium.Map(location=centro, zoom_start=12, tiles="OpenStreetMap")
                 cluster = MarkerCluster().add_to(m)
 
                 for _, fila in df_m.iterrows():
-                    # Generar popup con TODAS las columnas
-                    html_popup = "<div style='color:black; font-family:Arial; font-size:12px; min-width:200px;'>"
-                    html_popup += "<h4 style='color:#007bff; margin-top:0;'>Detalle del Registro</h4>"
+                    # Popup dinámico con toda la información
+                    html_popup = "<div style='color:black; font-family:sans-serif; font-size:12px; min-width:200px;'>"
+                    html_popup += "<h4 style='color:#007bff; border-bottom:1px solid #ddd; padding-bottom:5px;'>Detalles</h4>"
                     
                     for col in df_m.columns:
-                        if col in ['hora_dt']: continue # Omitir columnas auxiliares
-                        
+                        if col in ['hora_dt']: continue
                         valor = fila[col]
                         label = col.upper().replace('_', ' ')
-                        
-                        # Resaltar Emisor y Receptor
-                        if col == 'linea_b': label = "🔴 EMISOR (B)"
-                        if col == 'linea_a': label = "🔵 RECEPTOR (A)"
-                        
+                        if col == 'linea_b': label = "📞 EMISOR (Línea B)"
+                        if col == 'linea_a': label = "📱 RECEPTOR (Línea A)"
                         html_popup += f"<b>{label}:</b> {valor}<br>"
                     
                     html_popup += "</div>"
@@ -155,22 +160,21 @@ if uploaded_file:
                     folium.Marker(
                         location=[fila['latitud'], fila['longitud']],
                         popup=folium.Popup(html_popup, max_width=350),
-                        icon=folium.Icon(color='green', icon='crosshairs', prefix='fa')
+                        icon=folium.Icon(color='blue', icon='info-sign')
                     ).add_to(cluster)
 
                 # Descarga de Mapa
                 mapa_html = io.BytesIO()
                 m.save(mapa_html, close_file=False)
-                st.download_button("🔥 DESCARGAR MAPA (HTML)", data=mapa_html.getvalue(), 
-                                   file_name="mapa_inteligencia.html", mime="text/html")
+                st.download_button("💾 Guardar Mapa como HTML", data=mapa_html.getvalue(), 
+                                   file_name="mapa_interactivo.html", mime="text/html")
 
                 st_folium(m, width="100%", height=600, key=f"map_{len(df_m)}")
             else:
-                st.error("❌ No hay coordenadas para mostrar.")
+                st.error("No se encontraron coordenadas válidas para mostrar en el mapa.")
 
     except Exception as e:
-        st.error(f"❌ ERROR SISTEMA: {e}")
+        st.error(f"Error en el procesamiento: {e}")
 else:
-    st.info("💻 Cargue un archivo Excel para iniciar el análisis de celdas.")
-
+    st.info("Seleccione un archivo Excel para comenzar el análisis.")
 
