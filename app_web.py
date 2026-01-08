@@ -111,7 +111,7 @@ if uploaded_file:
         exp_col1.download_button("📥 DESCARGAR EXCEL FILTRADO", data=buffer_excel.getvalue(), 
                                  file_name="reporte_sabana.xlsx", mime="application/vnd.ms-excel")
 
-        if exp_col2.button("🗺️ MAPEER VISTA ACTUAL"):
+        if exp_col2.button("🗺️ MAPEAR VISTA ACTUAL"):
             st.session_state.datos_mapa = df_filtrado.copy()
             st.session_state.titulo_mapa = f"MAPA: {opcion}"
             st.session_state.mostrar_mapa = True
@@ -172,4 +172,5 @@ if uploaded_file:
         st.error(f"❌ ERROR SISTEMA: {e}")
 else:
     st.info("💻 Cargue un archivo Excel para iniciar el análisis de celdas.")
+
 
