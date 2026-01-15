@@ -7,14 +7,14 @@ import plotly.express as px
 import io
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="SABANAS ANALYZER PRO v2.2", layout="wide")
+st.set_page_config(page_title="SABANAS ANALYZER PRO v2.4", layout="wide")
 
 if 'mostrar_mapa' not in st.session_state:
     st.session_state.mostrar_mapa = False
 if 'datos_mapa' not in st.session_state:
     st.session_state.datos_mapa = None
 
-# Estilo CSS Personalizado
+# Estilo CSS Personalizado Forense (Mantenemos el estilo oscuro de la app, pero el mapa será claro)
 st.markdown("""
     <style>
     .main { background-color: #000000; color: #0f0; font-family: 'Courier New'; }
@@ -56,7 +56,7 @@ def estandarizar_df(df_temp):
         
     return df_temp
 
-st.title("👤 SABANAS ANALYZER v2.2 PRO")
+st.title("👤 SABANAS ANALYZER v2.4 PRO")
 st.write("---")
 
 uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA (PRINCIPAL)", type=["xlsx", "xls"])
@@ -72,92 +72,62 @@ if uploaded_file:
 
         df_filtrado = df.copy()
 
-        # --- LÓGICA DE FILTRADO ---
-        if opcion == "Búsqueda por Número":
-            num_buscado = st.sidebar.text_input("Introduce el número a buscar:")
-            if num_buscado:
-                df_filtrado = df[(df['linea a'].str.contains(num_buscado)) | (df['linea b'].str.contains(num_buscado))]
-            else:
-                st.info("Ingresa un número en la barra lateral.")
-
-        elif opcion == "Pernocta (23:00-06:00)":
-            df['hora_dt'] = pd.to_datetime(df['hora'].astype(str), format='%H:%M:%S', errors='coerce').dt.time
-            inicio, fin = pd.to_datetime("23:00:00").time(), pd.to_datetime("06:00:00").time()
-            df_filtrado = df[(df['hora_dt'] >= inicio) | (df['hora_dt'] <= fin)].copy()
-
-        elif opcion == "Top Antenas":
-            df_filtrado = df.groupby(['latitud', 'longitud']).size().reset_index(name='repeticiones').sort_values('repeticiones', ascending=False).head(15)
-
-        elif opcion == "Cruce de Sábanas":
+        # Lógica de Cruce (Misma funcionalidad solicitada anteriormente)
+        if opcion == "Cruce de Sábanas":
             st.sidebar.write("---")
             tipo_cruce = st.sidebar.selectbox("Criterio de Cruce:", ["Números Telefónicos", "Ubicación Geográfica (Lat/Lon)"])
             second_file = st.sidebar.file_uploader("📂 CARGAR SEGUNDA SÁBANA", type=["xlsx", "xls"])
-            
             if second_file:
                 df2 = pd.read_excel(second_file)
                 df2 = estandarizar_df(df2)
-                
                 if tipo_cruce == "Números Telefónicos":
                     nums_f1 = set(df['linea a'].unique()) | set(df['linea b'].unique())
                     nums_f2 = set(df2['linea a'].unique()) | set(df2['linea b'].unique())
                     coincidencias = nums_f1.intersection(nums_f2)
                     coincidencias.discard('DESCONOCIDO')
-                    
                     if coincidencias:
-                        st.success(f"🎯 COINCIDENCIA DE NÚMEROS: {len(coincidencias)}")
+                        st.success(f"🎯 COINCIDENCIAS: {len(coincidencias)}")
                         df_filtrado = df[df['linea a'].isin(coincidencias) | df['linea b'].isin(coincidencias)]
-                    else:
-                        st.warning("No se encontraron números comunes.")
-                        df_filtrado = pd.DataFrame()
-                
-                else: # CRUCE GEOGRÁFICO
-                    df1_geo = df.dropna(subset=['latitud', 'longitud'])
-                    df1_geo = df1_geo[(df1_geo['latitud'] != 0) & (df1_geo['longitud'] != 0)]
-                    df2_geo = df2.dropna(subset=['latitud', 'longitud'])
-                    df2_geo = df2_geo[(df2_geo['latitud'] != 0) & (df2_geo['longitud'] != 0)]
-                    
-                    df1_geo['lat_r'] = df1_geo['latitud'].round(4)
-                    df1_geo['lon_r'] = df1_geo['longitud'].round(4)
-                    df2_geo['lat_r'] = df2_geo['latitud'].round(4)
-                    df2_geo['lon_r'] = df2_geo['longitud'].round(4)
-                    
+                else:
+                    df1_geo = df.dropna(subset=['latitud', 'longitud']).copy()
+                    df2_geo = df2.dropna(subset=['latitud', 'longitud']).copy()
+                    df1_geo['lat_r'], df1_geo['lon_r'] = df1_geo['latitud'].round(4), df1_geo['longitud'].round(4)
+                    df2_geo['lat_r'], df2_geo['lon_r'] = df2_geo['latitud'].round(4), df2_geo['longitud'].round(4)
                     coord_f1 = set(zip(df1_geo['lat_r'], df1_geo['lon_r']))
                     coord_f2 = set(zip(df2_geo['lat_r'], df2_geo['lon_r']))
                     coincidencias_geo = coord_f1.intersection(coord_f2)
-                    
                     if coincidencias_geo:
-                        st.success(f"📍 COINCIDENCIA GEOGRÁFICA: {len(coincidencias_geo)} PUNTOS")
+                        st.success(f"📍 PUNTOS COMUNES: {len(coincidencias_geo)}")
                         df_filtrado = df1_geo[df1_geo.set_index(['lat_r', 'lon_r']).index.isin(coincidencias_geo)]
-                    else:
-                        st.warning("No se encontraron ubicaciones comunes.")
-                        df_filtrado = pd.DataFrame()
-            else:
-                st.info("Cargue el segundo archivo para realizar el cruce.")
 
-        # --- 📊 ESTADÍSTICAS ---
+        elif opcion == "Búsqueda por Número":
+            num_buscado = st.sidebar.text_input("Número:")
+            if num_buscado: df_filtrado = df[(df['linea a'].str.contains(num_buscado)) | (df['linea b'].str.contains(num_buscado))]
+
+        elif opcion == "Pernocta (23:00-06:00)":
+            df['hora_dt'] = pd.to_datetime(df['hora'].astype(str), format='%H:%M:%S', errors='coerce').dt.time
+            inicio, fin = pd.to_datetime("23:00:00").time(), pd.to_datetime("06:00:00").time()
+            df_filtrado = df[(df['hora_dt'] >= inicio) | (df['hora_dt'] <= fin)]
+
+        elif opcion == "Top Antenas":
+            df_filtrado = df.groupby(['latitud', 'longitud']).size().reset_index(name='repeticiones').sort_values('repeticiones', ascending=False).head(15)
+
+        # Estadísticas y Tabla
         if not df_filtrado.empty and opcion != "Top Antenas":
-            st.subheader("🔝 TOP 5 CONTACTOS MÁS FRECUENTES")
-            resumen = df_filtrado.groupby(['linea a', 'linea b']).size().reset_index(name='Total')
-            resumen = resumen.sort_values(by='Total', ascending=False).head(5)
-            c1, c2 = st.columns([1, 2])
-            with c1: st.table(resumen)
-            with c2:
-                fig = px.bar(resumen, x='linea b', y='Total', color='Total', template="plotly_dark", color_continuous_scale='Greens')
-                fig.update_layout(height=300)
-                st.plotly_chart(fig, use_container_width=True)
+            st.subheader("🔝 TOP 5 CONTACTOS")
+            resumen = df_filtrado.groupby(['linea a', 'linea b']).size().reset_index(name='Total').sort_values('Total', ascending=False).head(5)
+            c1, c2 = st.columns([1, 2]); c1.table(resumen)
+            fig = px.bar(resumen, x='linea b', y='Total', template="plotly_dark", color_continuous_scale='Greens'); c2.plotly_chart(fig, use_container_width=True)
 
-        # --- 📑 REGISTROS ---
         st.subheader(f"📑 REGISTROS ({len(df_filtrado)})")
         st.dataframe(df_filtrado, use_container_width=True)
         
         if not df_filtrado.empty:
-            st.download_button("💾 DESCARGAR EXCEL", data=to_excel(df_filtrado), file_name="analisis.xlsx")
-
+            st.download_button("💾 EXCEL", data=to_excel(df_filtrado), file_name="analisis.xlsx")
             st.write("---")
-            col_map1, col_map2 = st.columns([1, 1])
-            
-            with col_map1:
-                if st.button("🗺️ GENERAR MAPA INTERACTIVO"):
+            col_m1, col_m2 = st.columns([1, 1])
+            with col_m1:
+                if st.button("🗺️ GENERAR MAPA FONDO BLANCO"):
                     st.session_state.datos_mapa = df_filtrado.copy()
                     st.session_state.mostrar_mapa = True
 
@@ -166,27 +136,31 @@ if uploaded_file:
                 df_m = df_m[(df_m['latitud'] != 0) & (df_m['longitud'] != 0)]
                 
                 if not df_m.empty:
-                    m = folium.Map(location=[df_m['latitud'].mean(), df_m['longitud'].mean()], zoom_start=12, tiles="CartoDB dark_matter")
+                    # CAMBIO A FONDO BLANCO (tiles="OpenStreetMap")
+                    m = folium.Map(location=[df_m['latitud'].mean(), df_m['longitud'].mean()], zoom_start=12, tiles="OpenStreetMap")
                     cluster = MarkerCluster().add_to(m)
+                    
                     for _, fila in df_m.iterrows():
-                        html = f"<b>A:</b> {fila['linea a']}<br><b>B:</b> {fila['linea b']}<br><b>FECHA:</b> {fila['fecha']}"
-                        folium.Marker([fila['latitud'], fila['longitud']], popup=folium.Popup(html, max_width=200)).add_to(cluster)
+                        # GENERACIÓN DINÁMICA DE TODA LA INFORMACIÓN DEL EXCEL
+                        info_html = "<div style='font-family: sans-serif; font-size: 12px;'>"
+                        for col in df_m.columns:
+                            # Evitamos mostrar las columnas auxiliares de redondeo si existen
+                            if col not in ['lat_r', 'lon_r', 'hora_dt']:
+                                info_html += f"<b>{col.upper()}:</b> {fila[col]}<br>"
+                        info_html += "</div>"
+                        
+                        folium.Marker(
+                            [fila['latitud'], fila['longitud']], 
+                            popup=folium.Popup(info_html, max_width=300)
+                        ).add_to(cluster)
                     
                     st_folium(m, width="100%", height=600)
-                    
-                    # --- BOTÓN DE DESCARGA DE MAPA ---
-                    mapa_html = m._repr_html_()
-                    with col_map2:
-                        st.download_button(
-                            label="📥 DESCARGAR MAPA (HTML)",
-                            data=mapa_html,
-                            file_name="mapa_analisis_forense.html",
-                            mime="text/html"
-                        )
+                    with col_m2:
+                        st.download_button("📥 DESCARGAR MAPA (HTML)", data=m._repr_html_(), file_name="mapa_blanco.html", mime="text/html")
                 else:
-                    st.warning("Sin coordenadas válidas para el mapa.")
+                    st.warning("⚠️ Sin coordenadas válidas.")
 
     except Exception as e:
-        st.error(f"Error técnico: {e}")
+        st.error(f"Error: {e}")
 
-st.sidebar.caption("SABANAS ANALYZER v2.2 PRO")
+st.sidebar.caption("SABANAS ANALYZER v2.4 PRO")
