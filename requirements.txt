@@ -2,5 +2,7 @@ streamlit
 pandas
 folium
 streamlit-folium
-openpyxl
+plotly
 xlsxwriter
+xlrd
+openpyxl
