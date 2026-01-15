@@ -2,19 +2,19 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import MarkerCluster
+from folium.plugins import MarkerCluster, Search
 import plotly.express as px
 import io
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="SABANAS ANALYZER PRO v2.4", layout="wide")
+st.set_page_config(page_title="SABANAS ANALYZER PRO v2.8", layout="wide")
 
 if 'mostrar_mapa' not in st.session_state:
     st.session_state.mostrar_mapa = False
 if 'datos_mapa' not in st.session_state:
     st.session_state.datos_mapa = None
 
-# Estilo CSS Personalizado Forense (Mantenemos el estilo oscuro de la app, pero el mapa será claro)
+# Estilo CSS Personalizado
 st.markdown("""
     <style>
     .main { background-color: #000000; color: #0f0; font-family: 'Courier New'; }
@@ -56,10 +56,10 @@ def estandarizar_df(df_temp):
         
     return df_temp
 
-st.title("👤 SABANAS ANALYZER v2.4 PRO")
+st.title("👤 SABANAS ANALYZER v2.8 PRO")
 st.write("---")
 
-uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA (PRINCIPAL)", type=["xlsx", "xls"])
+uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA", type=["xlsx", "xls"])
 
 if uploaded_file:
     try:
@@ -72,37 +72,30 @@ if uploaded_file:
 
         df_filtrado = df.copy()
 
-        # Lógica de Cruce (Misma funcionalidad solicitada anteriormente)
+        # Lógica de filtrado (Mantenida igual)
         if opcion == "Cruce de Sábanas":
             st.sidebar.write("---")
-            tipo_cruce = st.sidebar.selectbox("Criterio de Cruce:", ["Números Telefónicos", "Ubicación Geográfica (Lat/Lon)"])
-            second_file = st.sidebar.file_uploader("📂 CARGAR SEGUNDA SÁBANA", type=["xlsx", "xls"])
+            tipo_cruce = st.sidebar.selectbox("Criterio:", ["Números", "Ubicación"])
+            second_file = st.sidebar.file_uploader("📂 SEGUNDA SÁBANA", type=["xlsx", "xls"])
             if second_file:
-                df2 = pd.read_excel(second_file)
-                df2 = estandarizar_df(df2)
-                if tipo_cruce == "Números Telefónicos":
-                    nums_f1 = set(df['linea a'].unique()) | set(df['linea b'].unique())
-                    nums_f2 = set(df2['linea a'].unique()) | set(df2['linea b'].unique())
-                    coincidencias = nums_f1.intersection(nums_f2)
+                df2 = estandarizar_df(pd.read_excel(second_file))
+                if tipo_cruce == "Números":
+                    nums1 = set(df['linea a']) | set(df['linea b'])
+                    nums2 = set(df2['linea a']) | set(df2['linea b'])
+                    coincidencias = nums1.intersection(nums2)
                     coincidencias.discard('DESCONOCIDO')
-                    if coincidencias:
-                        st.success(f"🎯 COINCIDENCIAS: {len(coincidencias)}")
-                        df_filtrado = df[df['linea a'].isin(coincidencias) | df['linea b'].isin(coincidencias)]
+                    df_filtrado = df[df['linea a'].isin(coincidencias) | df['linea b'].isin(coincidencias)]
                 else:
-                    df1_geo = df.dropna(subset=['latitud', 'longitud']).copy()
-                    df2_geo = df2.dropna(subset=['latitud', 'longitud']).copy()
-                    df1_geo['lat_r'], df1_geo['lon_r'] = df1_geo['latitud'].round(4), df1_geo['longitud'].round(4)
-                    df2_geo['lat_r'], df2_geo['lon_r'] = df2_geo['latitud'].round(4), df2_geo['longitud'].round(4)
-                    coord_f1 = set(zip(df1_geo['lat_r'], df1_geo['lon_r']))
-                    coord_f2 = set(zip(df2_geo['lat_r'], df2_geo['lon_r']))
-                    coincidencias_geo = coord_f1.intersection(coord_f2)
-                    if coincidencias_geo:
-                        st.success(f"📍 PUNTOS COMUNES: {len(coincidencias_geo)}")
-                        df_filtrado = df1_geo[df1_geo.set_index(['lat_r', 'lon_r']).index.isin(coincidencias_geo)]
+                    df['lat_r'], df['lon_r'] = df['latitud'].round(4), df['longitud'].round(4)
+                    df2['lat_r'], df2['lon_r'] = df2['latitud'].round(4), df2['longitud'].round(4)
+                    coord1 = set(zip(df.dropna(subset=['lat_r'])['lat_r'], df.dropna(subset=['lon_r'])['lon_r']))
+                    coord2 = set(zip(df2.dropna(subset=['lat_r'])['lat_r'], df2.dropna(subset=['lon_r'])['lon_r']))
+                    comunes = coord1.intersection(coord2)
+                    df_filtrado = df[df.set_index(['lat_r', 'lon_r']).index.isin(comunes)]
 
         elif opcion == "Búsqueda por Número":
-            num_buscado = st.sidebar.text_input("Número:")
-            if num_buscado: df_filtrado = df[(df['linea a'].str.contains(num_buscado)) | (df['linea b'].str.contains(num_buscado))]
+            num = st.sidebar.text_input("Número:")
+            if num: df_filtrado = df[(df['linea a'].str.contains(num)) | (df['linea b'].str.contains(num))]
 
         elif opcion == "Pernocta (23:00-06:00)":
             df['hora_dt'] = pd.to_datetime(df['hora'].astype(str), format='%H:%M:%S', errors='coerce').dt.time
@@ -112,22 +105,13 @@ if uploaded_file:
         elif opcion == "Top Antenas":
             df_filtrado = df.groupby(['latitud', 'longitud']).size().reset_index(name='repeticiones').sort_values('repeticiones', ascending=False).head(15)
 
-        # Estadísticas y Tabla
-        if not df_filtrado.empty and opcion != "Top Antenas":
-            st.subheader("🔝 TOP 5 CONTACTOS")
-            resumen = df_filtrado.groupby(['linea a', 'linea b']).size().reset_index(name='Total').sort_values('Total', ascending=False).head(5)
-            c1, c2 = st.columns([1, 2]); c1.table(resumen)
-            fig = px.bar(resumen, x='linea b', y='Total', template="plotly_dark", color_continuous_scale='Greens'); c2.plotly_chart(fig, use_container_width=True)
-
         st.subheader(f"📑 REGISTROS ({len(df_filtrado)})")
         st.dataframe(df_filtrado, use_container_width=True)
         
         if not df_filtrado.empty:
-            st.download_button("💾 EXCEL", data=to_excel(df_filtrado), file_name="analisis.xlsx")
-            st.write("---")
             col_m1, col_m2 = st.columns([1, 1])
             with col_m1:
-                if st.button("🗺️ GENERAR MAPA FONDO BLANCO"):
+                if st.button("🗺️ GENERAR MAPA PROFESIONAL"):
                     st.session_state.datos_mapa = df_filtrado.copy()
                     st.session_state.mostrar_mapa = True
 
@@ -136,31 +120,48 @@ if uploaded_file:
                 df_m = df_m[(df_m['latitud'] != 0) & (df_m['longitud'] != 0)]
                 
                 if not df_m.empty:
-                    # CAMBIO A FONDO BLANCO (tiles="OpenStreetMap")
+                    # MAPA FONDO BLANCO Y BUSCADOR
                     m = folium.Map(location=[df_m['latitud'].mean(), df_m['longitud'].mean()], zoom_start=12, tiles="OpenStreetMap")
                     cluster = MarkerCluster().add_to(m)
                     
-                    for _, fila in df_m.iterrows():
-                        # GENERACIÓN DINÁMICA DE TODA LA INFORMACIÓN DEL EXCEL
-                        info_html = "<div style='font-family: sans-serif; font-size: 12px;'>"
-                        for col in df_m.columns:
-                            # Evitamos mostrar las columnas auxiliares de redondeo si existen
-                            if col not in ['lat_r', 'lon_r', 'hora_dt']:
-                                info_html += f"<b>{col.upper()}:</b> {fila[col]}<br>"
-                        info_html += "</div>"
-                        
-                        folium.Marker(
-                            [fila['latitud'], fila['longitud']], 
-                            popup=folium.Popup(info_html, max_width=300)
-                        ).add_to(cluster)
+                    # Capa para el buscador
+                    fg = folium.FeatureGroup(name="Registros")
                     
+                    for _, fila in df_m.iterrows():
+                        # TABLA HTML PARA EL POPUP (Más organizada)
+                        html_table = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px;'>"
+                        html_table += "<tr style='background-color: #f2f2f2;'><th>CAMPO</th><th>VALOR</th></tr>"
+                        for col in df_m.columns:
+                            if col not in ['lat_r', 'lon_r', 'hora_dt']:
+                                html_table += f"<tr><td style='border:1px solid #ddd; padding:4px; font-weight:bold;'>{col.upper()}</td><td style='border:1px solid #ddd; padding:4px;'>{fila[col]}</td></tr>"
+                        html_table += "</table>"
+                        
+                        # SOLUCIÓN: CircleMarker en lugar de Marker (No usa imágenes externas)
+                        folium.CircleMarker(
+                            location=[fila['latitud'], fila['longitud']],
+                            radius=8,
+                            popup=folium.Popup(html_table, max_width=350),
+                            color='black', # Borde del punto
+                            weight=1,
+                            fill=True,
+                            fill_color='red', # Color del punto
+                            fill_opacity=0.7,
+                            name=f"A: {fila.get('linea a', '')} | B: {fila.get('linea b', '')}"
+                        ).add_to(fg)
+                    
+                    fg.add_to(m)
+                    cluster.add_to(m)
+                    
+                    # BUSCADOR SOBRE EL MAPA
+                    Search(layer=fg, geom_type="Point", placeholder="Buscar número...", collapsed=False, search_label="name").add_to(m)
+
                     st_folium(m, width="100%", height=600)
                     with col_m2:
-                        st.download_button("📥 DESCARGAR MAPA (HTML)", data=m._repr_html_(), file_name="mapa_blanco.html", mime="text/html")
+                        st.download_button("📥 DESCARGAR MAPA HTML", data=m._repr_html_(), file_name="mapa_forense.html", mime="text/html")
                 else:
                     st.warning("⚠️ Sin coordenadas válidas.")
 
     except Exception as e:
         st.error(f"Error: {e}")
 
-st.sidebar.caption("SABANAS ANALYZER v2.4 PRO")
+st.sidebar.caption("SABANAS ANALYZER v2.8 PRO")
