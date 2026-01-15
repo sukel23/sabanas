@@ -7,7 +7,7 @@ import plotly.express as px
 import io
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="SABANAS ANALYZER PRO v2.8", layout="wide")
+st.set_page_config(page_title="SABANAS ANALYZER PRO v3.0", layout="wide")
 
 if 'mostrar_mapa' not in st.session_state:
     st.session_state.mostrar_mapa = False
@@ -56,7 +56,7 @@ def estandarizar_df(df_temp):
         
     return df_temp
 
-st.title("👤 SABANAS ANALYZER v2.8 PRO")
+st.title("👤 SABANAS ANALYZER v3.0 PRO")
 st.write("---")
 
 uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA", type=["xlsx", "xls"])
@@ -72,7 +72,7 @@ if uploaded_file:
 
         df_filtrado = df.copy()
 
-        # Lógica de filtrado (Mantenida igual)
+        # LÓGICA DE FILTRADO
         if opcion == "Cruce de Sábanas":
             st.sidebar.write("---")
             tipo_cruce = st.sidebar.selectbox("Criterio:", ["Números", "Ubicación"])
@@ -85,6 +85,8 @@ if uploaded_file:
                     coincidencias = nums1.intersection(nums2)
                     coincidencias.discard('DESCONOCIDO')
                     df_filtrado = df[df['linea a'].isin(coincidencias) | df['linea b'].isin(coincidencias)]
+                    if not df_filtrado.empty:
+                        st.success(f"🔗 ENLACES: {len(coincidencias)} números comunes | {len(df_filtrado)} registros.")
                 else:
                     df['lat_r'], df['lon_r'] = df['latitud'].round(4), df['longitud'].round(4)
                     df2['lat_r'], df2['lon_r'] = df2['latitud'].round(4), df2['longitud'].round(4)
@@ -92,6 +94,8 @@ if uploaded_file:
                     coord2 = set(zip(df2.dropna(subset=['lat_r'])['lat_r'], df2.dropna(subset=['lon_r'])['lon_r']))
                     comunes = coord1.intersection(coord2)
                     df_filtrado = df[df.set_index(['lat_r', 'lon_r']).index.isin(comunes)]
+                    if not df_filtrado.empty:
+                        st.success(f"📍 PUNTOS COMUNES: {len(comunes)} zonas | {len(df_filtrado)} registros.")
 
         elif opcion == "Búsqueda por Número":
             num = st.sidebar.text_input("Número:")
@@ -104,6 +108,18 @@ if uploaded_file:
 
         elif opcion == "Top Antenas":
             df_filtrado = df.groupby(['latitud', 'longitud']).size().reset_index(name='repeticiones').sort_values('repeticiones', ascending=False).head(15)
+
+        # --- SECCIÓN DE ESTADÍSTICAS REINSTALADA ---
+        if not df_filtrado.empty and opcion != "Top Antenas":
+            st.subheader("🔝 TOP 5 CONTACTOS")
+            resumen = df_filtrado.groupby(['linea a', 'linea b']).size().reset_index(name='Total').sort_values('Total', ascending=False).head(5)
+            col_t1, col_t2 = st.columns([1, 2])
+            with col_t1:
+                st.table(resumen)
+            with col_t2:
+                fig = px.bar(resumen, x='linea b', y='Total', template="plotly_dark", color_discrete_sequence=['#0f0'])
+                fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig, use_container_width=True)
 
         st.subheader(f"📑 REGISTROS ({len(df_filtrado)})")
         st.dataframe(df_filtrado, use_container_width=True)
@@ -120,15 +136,11 @@ if uploaded_file:
                 df_m = df_m[(df_m['latitud'] != 0) & (df_m['longitud'] != 0)]
                 
                 if not df_m.empty:
-                    # MAPA FONDO BLANCO Y BUSCADOR
                     m = folium.Map(location=[df_m['latitud'].mean(), df_m['longitud'].mean()], zoom_start=12, tiles="OpenStreetMap")
                     cluster = MarkerCluster().add_to(m)
-                    
-                    # Capa para el buscador
                     fg = folium.FeatureGroup(name="Registros")
                     
                     for _, fila in df_m.iterrows():
-                        # TABLA HTML PARA EL POPUP (Más organizada)
                         html_table = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px;'>"
                         html_table += "<tr style='background-color: #f2f2f2;'><th>CAMPO</th><th>VALOR</th></tr>"
                         for col in df_m.columns:
@@ -136,32 +148,27 @@ if uploaded_file:
                                 html_table += f"<tr><td style='border:1px solid #ddd; padding:4px; font-weight:bold;'>{col.upper()}</td><td style='border:1px solid #ddd; padding:4px;'>{fila[col]}</td></tr>"
                         html_table += "</table>"
                         
-                        # SOLUCIÓN: CircleMarker en lugar de Marker (No usa imágenes externas)
                         folium.CircleMarker(
                             location=[fila['latitud'], fila['longitud']],
                             radius=8,
                             popup=folium.Popup(html_table, max_width=350),
-                            color='black', # Borde del punto
+                            color='black',
                             weight=1,
                             fill=True,
-                            fill_color='red', # Color del punto
+                            fill_color='red',
                             fill_opacity=0.7,
                             name=f"A: {fila.get('linea a', '')} | B: {fila.get('linea b', '')}"
                         ).add_to(fg)
                     
                     fg.add_to(m)
                     cluster.add_to(m)
-                    
-                    # BUSCADOR SOBRE EL MAPA
                     Search(layer=fg, geom_type="Point", placeholder="Buscar número...", collapsed=False, search_label="name").add_to(m)
 
                     st_folium(m, width="100%", height=600)
                     with col_m2:
                         st.download_button("📥 DESCARGAR MAPA HTML", data=m._repr_html_(), file_name="mapa_forense.html", mime="text/html")
-                else:
-                    st.warning("⚠️ Sin coordenadas válidas.")
 
     except Exception as e:
         st.error(f"Error: {e}")
 
-st.sidebar.caption("SABANAS ANALYZER v2.8 PRO")
+st.sidebar.caption("SABANAS ANALYZER v3.0 PRO")
