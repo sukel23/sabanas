@@ -92,23 +92,201 @@ if uploaded_file:
         elif opcion == "Top Antenas":
             df_filtrado = df_base.groupby(['latitud', 'longitud']).size().reset_index(name='repeticiones').sort_values('repeticiones', ascending=False).head(15)
 
+        
         elif opcion == "Cruce de Sábanas":
-            tipo_cruce = st.sidebar.selectbox("Criterio:", ["Números", "Ubicación"])
-            second_file = st.sidebar.file_uploader("📂 SEGUNDA SÁBANA", type=["xlsx", "xls"])
+            tipo_cruce = st.sidebar.selectbox(
+                "Criterio:",
+                ["Números", "Ubicación Inteligente"]
+            )
+            second_file = st.sidebar.file_uploader(
+                "📂 SEGUNDA SÁBANA",
+                type=["xlsx", "xls"]
+            )
+
             if second_file:
                 df2 = estandarizar_df(pd.read_excel(second_file))
+
                 if tipo_cruce == "Números":
                     nums1 = set(df_base['linea a']) | set(df_base['linea b'])
                     nums2 = set(df2['linea a']) | set(df2['linea b'])
                     comunes = nums1.intersection(nums2)
                     comunes.discard('DESCONOCIDO')
-                    df_filtrado = df_base[df_base['linea a'].isin(comunes) | df_base['linea b'].isin(comunes)]
+                    df_filtrado = df_base[
+                        df_base['linea a'].isin(comunes)
+                        | df_base['linea b'].isin(comunes)
+                    ]
                 else:
-                    df_base['lat_r'], df_base['lon_r'] = df_base['latitud'].round(4), df_base['longitud'].round(4)
-                    df2['lat_r'], df2['lon_r'] = df2['latitud'].round(4), df2['longitud'].round(4)
-                    coord_comunes = set(zip(df_base.dropna(subset=['lat_r'])['lat_r'], df_base.dropna(subset=['lon_r'])['lon_r'])).intersection(
-                                    set(zip(df2.dropna(subset=['lat_r'])['lat_r'], df2.dropna(subset=['lon_r'])['lon_r'])))
-                    df_filtrado = df_base[df_base.set_index(['lat_r', 'lon_r']).index.isin(coord_comunes)]
+                    for dfx in [df_base, df2]:
+                        dfx['lat_r'] = dfx['latitud'].round(4)
+                        dfx['lon_r'] = dfx['longitud'].round(4)
+                        dfx['ubicacion'] = (
+                            dfx['lat_r'].astype(str)
+                            + ","
+                            + dfx['lon_r'].astype(str)
+                        )
+                        dfx['fecha_tmp'] = pd.to_datetime(
+                            dfx['fecha'],
+                            errors='coerce'
+                        ).dt.date
+
+                    cruces = []
+
+                    for _, r1 in df_base.iterrows():
+                        iguales = df2[
+                            df2['ubicacion'] == r1['ubicacion']
+                        ]
+
+                        for _, r2 in iguales.iterrows():
+                            cruces.append({
+                                'latitud': r1['latitud'],
+                                'longitud': r1['longitud'],
+                                'fecha1': r1['fecha_tmp'],
+                                'fecha2': r2['fecha_tmp'],
+                                'mismo_dia': (
+                                    r1['fecha_tmp']
+                                    == r2['fecha_tmp']
+                                ),
+                                'linea1': r1.get('linea a', ''),
+                                'linea2': r2.get('linea a', ''),
+                                'ubicacion': r1['ubicacion']
+                            })
+
+                    df_cruces = pd.DataFrame(cruces)
+
+                    if not df_cruces.empty:
+                        st.subheader("📍 Coincidencias Geográficas")
+                        st.dataframe(
+                            df_cruces,
+                            use_container_width=True
+                        )
+
+                        numero1 = str(
+                            df_base['linea a']
+                            .dropna()
+                            .iloc[0]
+                        )
+
+                        numero2 = str(
+                            df2['linea a']
+                            .dropna()
+                            .iloc[0]
+                        )
+
+                        llamo_1_2 = df_base[
+                            df_base['linea b']
+                            .astype(str)
+                            .str.contains(
+                                numero2,
+                                na=False
+                            )
+                        ]
+
+                        llamo_2_1 = df2[
+                            df2['linea b']
+                            .astype(str)
+                            .str.contains(
+                                numero1,
+                                na=False
+                            )
+                        ]
+
+                        st.success(
+                            f"{numero1} llamó a "
+                            f"{numero2}: "
+                            f"{len(llamo_1_2)} veces"
+                        )
+
+                        st.success(
+                            f"{numero2} llamó a "
+                            f"{numero1}: "
+                            f"{len(llamo_2_1)} veces"
+                        )
+
+                        with st.expander(
+                            "📞 Detalle de llamadas"
+                        ):
+                            if not llamo_1_2.empty:
+                                st.write(
+                                    f"### {numero1} → {numero2}"
+                                )
+                                st.dataframe(llamo_1_2)
+
+                            if not llamo_2_1.empty:
+                                st.write(
+                                    f"### {numero2} → {numero1}"
+                                )
+                                st.dataframe(llamo_2_1)
+
+                        m = folium.Map(
+                            location=[
+                                df_cruces['latitud'].mean(),
+                                df_cruces['longitud'].mean()
+                            ],
+                            zoom_start=12
+                        )
+
+                        cluster = MarkerCluster().add_to(m)
+
+                        for _, fila in df_cruces.iterrows():
+
+                            color = (
+                                "red"
+                                if fila['mismo_dia']
+                                else "blue"
+                            )
+
+                            detalle = df_cruces[
+                                (df_cruces['latitud']
+                                 == fila['latitud'])
+                                &
+                                (df_cruces['longitud']
+                                 == fila['longitud'])
+                            ]
+
+                            html = (
+                                f"<h4>Coincidencias: "
+                                f"{len(detalle)}</h4>"
+                            )
+
+                            for _, x in detalle.iterrows():
+                                html += f'''
+                                <hr>
+                                <b>Línea 1:</b> {x['linea1']}<br>
+                                <b>Línea 2:</b> {x['linea2']}<br>
+                                <b>Fecha 1:</b> {x['fecha1']}<br>
+                                <b>Fecha 2:</b> {x['fecha2']}<br>
+                                <b>Mismo día:</b>
+                                {'SI' if x['mismo_dia'] else 'NO'}<br>
+                                '''
+
+                            folium.CircleMarker(
+                                location=[
+                                    fila['latitud'],
+                                    fila['longitud']
+                                ],
+                                radius=10,
+                                color=color,
+                                fill=True,
+                                fill_color=color,
+                                fill_opacity=0.8,
+                                popup=folium.Popup(
+                                    html,
+                                    max_width=450
+                                )
+                            ).add_to(cluster)
+
+                        st_folium(
+                            m,
+                            width="100%",
+                            height=700,
+                            key="mapa_cruce"
+                        )
+
+                        df_filtrado = df_base
+                    else:
+                        st.warning(
+                            "No se encontraron coincidencias geográficas."
+                        )
 
         # --- VISUALIZACIÓN ---
         if not df_filtrado.empty:
