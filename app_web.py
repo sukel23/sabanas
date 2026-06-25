@@ -53,7 +53,7 @@ def estandarizar_df(df_temp):
         df_temp['longitud'] = pd.to_numeric(df_temp['longitud'], errors='coerce')
     return df_temp
 
-st.title("👤 ANALIZADOR DE SABANAS")
+st.title("👤 ANALIZADOR DE SABANAS DE INTELIGENCIA")
 st.write("---")
 
 uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA", type=["xlsx", "xls"])
