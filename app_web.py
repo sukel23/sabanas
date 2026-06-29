@@ -11,14 +11,95 @@ st.set_page_config(page_title="ANALISIS FORENSE INTELIGENCIA", layout="wide")
 
 # Estilo CSS Personalizado (Hacker Style)
 st.markdown("""
-    <style>
-    .main { background-color: #000000; color: #0f0; font-family: 'Courier New'; }
-    .stButton>button { width: 100%; border: 1px solid #0f0; background-color: black; color: #0f0; font-weight: bold; }
-    h1, h2, h3 { color: #0f0 !important; text-shadow: 0 0 8px #0f0; text-transform: uppercase; }
-    [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #0f0; }
-    .stDataFrame { border: 1px solid #0f0; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.stApp {
+    background-color: black;
+    color: #00ff00;
+}
+
+.main {
+    background: rgba(0,0,0,0.85);
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+}
+
+h1, h2, h3 {
+    color: #00ff00 !important;
+    text-shadow: 0 0 15px #00ff00;
+    font-weight: bold;
+}
+
+[data-testid="stSidebar"] {
+    background: rgba(0,0,0,0.95);
+    border-right: 1px solid #00ff00;
+}
+
+.stButton > button {
+    width: 100%;
+    background: black;
+    color: #00ff00;
+    border: 1px solid #00ff00;
+    box-shadow: 0 0 10px #00ff00;
+}
+
+.stDataFrame {
+    border: 1px solid #00ff00;
+    box-shadow: 0 0 10px #00ff00;
+}
+
+.block-container {
+    background: rgba(0,0,0,0.75);
+    border-radius: 15px;
+    padding: 2rem;
+}
+
+#matrix {
+    position: fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    z-index:-1;
+}
+</style>
+
+<canvas id="matrix"></canvas>
+
+<script>
+const canvas = document.getElementById("matrix");
+if (canvas) {
+const ctx = canvas.getContext("2d");
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const matrix = letters.split("");
+const fontSize = 16;
+const columns = canvas.width / fontSize;
+const drops = [];
+
+for (let x = 0; x < columns; x++) drops[x] = 1;
+
+function draw() {
+    ctx.fillStyle = "rgba(0,0,0,0.05)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#00ff00";
+    ctx.font = fontSize + "px monospace";
+
+    for (let i = 0; i < drops.length; i++) {
+        const txt = matrix[Math.floor(Math.random()*matrix.length)];
+        ctx.fillText(txt, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+            drops[i] = 0;
+
+        drops[i]++;
+    }
+}
+setInterval(draw, 35);
+}
+</script>
+""", unsafe_allow_html=True)
 
 # Función para formatear valores, eliminando decimales innecesarios de IMEI/IMSI
 def formatear_valor(valor):
@@ -53,7 +134,27 @@ def estandarizar_df(df_temp):
         df_temp['longitud'] = pd.to_numeric(df_temp['longitud'], errors='coerce')
     return df_temp
 
-st.title("👤 ANALIZADOR DE SABANAS DE INTELIGENCIA")
+st.markdown("""
+<h1 style='text-align:center;
+color:#00ff00;
+text-shadow:0 0 20px #00ff00'>
+☠️ CYBER INTELLIGENCE TERMINAL ☠️
+</h1>
+<p style='text-align:center;color:#00ff00'>
+[ ACCESS GRANTED ] - FORENSIC ANALYSIS SYSTEM ONLINE
+</p>
+""", unsafe_allow_html=True)
+
+st.sidebar.markdown("""
+## 🟢 ROOT@FORENSIC:~$
+```bash
+Inicializando módulos...
+Cargando inteligencia...
+Conectando antenas...
+Sistema operativo.
+```
+""")
+
 st.write("---")
 
 uploaded_file = st.file_uploader("📂 CARGAR EXCEL DE TELEFONÍA", type=["xlsx", "xls"])
