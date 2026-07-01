@@ -229,7 +229,7 @@ with col_logo:
     if os.path.exists(ruta_imagen):
         st.image(ruta_imagen, use_container_width=True)
     else:
-        st.error("⚠️ Falta el archivo 'Gemini_Generated_Image_x8qqgpx8qqgpx8qq.png' en la carpeta sabana1")
+        st.error("⚠️ Falta el archivo 'logotipo.png' en la carpeta")
 
 with col_titulo:
     st.title("🛰️ INTEL FORENSIC ANALYSIS SYSTEM")
