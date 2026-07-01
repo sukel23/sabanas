@@ -108,7 +108,7 @@ def generar_html_popup_comparativo(reg_base, reg_espejo, tipo_alerta, titulo_ale
     text_color = '#fff' if tipo_alerta != 'ALERTA' else '#000'
 
     html = f"""
-    <div style="font-family: monospace; min-width: 400px; color: #000; font-size: 11px;">
+    <div style="font-family: monospace; min-width: 410px; color: #000; font-size: 11px;">
         <div style="background-color: {color_banner}; color: {text_color}; padding: 6px; text-align: center; font-weight: bold; border-radius: 4px; font-size: 12px; margin-bottom: 8px;">
             {titulo_alerta}
         </div>
@@ -123,6 +123,7 @@ def generar_html_popup_comparativo(reg_base, reg_espejo, tipo_alerta, titulo_ale
                 <b>H:</b> {reg_base.get('hora', 'N/A')}<br>
                 <b>A:</b> {reg_base.get('linea a', 'N/A')}<br>
                 <b>B:</b> {reg_base.get('linea b', 'N/A')}<br>
+                <b>GEO:</b> {reg_base.get('latitud', 'N/A')}, {reg_base.get('longitud', 'N/A')}<br>
             </div>
             <div style="flex: 1; background: #fdf3f3; padding: 6px; border-radius: 4px; border-left: 3px solid {color_banner};">
                 <b style="color: #111;">📑 BRAVO (S2)</b><hr style="margin: 4px 0; border: 0; border-top: 1px solid #ccc;">
@@ -130,6 +131,7 @@ def generar_html_popup_comparativo(reg_base, reg_espejo, tipo_alerta, titulo_ale
                 <b>H:</b> {reg_espejo.get('hora', 'N/A')}<br>
                 <b>A:</b> {reg_espejo.get('linea a', 'N/A')}<br>
                 <b>B:</b> {reg_espejo.get('linea b', 'N/A')}<br>
+                <b>GEO:</b> {reg_espejo.get('latitud', 'N/A')}, {reg_espejo.get('longitud', 'N/A')}<br>
             </div>
         </div>
         """
@@ -140,6 +142,7 @@ def generar_html_popup_comparativo(reg_base, reg_espejo, tipo_alerta, titulo_ale
             <b>Hora:</b> {reg_base.get('hora', 'N/A')}<br>
             <b>Línea A:</b> {reg_base.get('linea a', 'N/A')}<br>
             <b>Línea B:</b> {reg_base.get('linea b', 'N/A')}<br>
+            <b>Coordenadas:</b> {reg_base.get('latitud', 'N/A')}, {reg_base.get('longitud', 'N/A')}
         </div>
         """
         
@@ -235,7 +238,6 @@ if uploaded_file:
 
             st.subheader("🗺️ MAPA TÁCTICO")
 
-            # LIMPIEZA TOTAL DE VACÍOS Y COORDENADAS EN CERO
             df_m = df_filtrado.dropna(subset=['latitud', 'longitud']).copy()
             if not df_m.empty:
                 df_m = df_m[(df_m['latitud'] != 0) & (df_m['longitud'] != 0)]
@@ -243,13 +245,12 @@ if uploaded_file:
             if not df_m.empty:
                 st.success(f"🌐 Procesando cartografía completa: Mapeando {len(df_m)} coordenadas válidas detectadas (registros vacíos o en 0 omitidos).")
 
-                # RE-INYECCIÓN DE TEXTO EXPLICATIVO DE COLORES EN PANTALLA
                 if es_cruce_inteligente and df_cruce_referencia is not None:
                     st.markdown("""
                     <div style="background-color: #0b1119; padding: 12px; border: 1px solid #00ff88; border-radius: 4px; margin-bottom: 15px;">
                         <span style="color:#00ff88; font-weight:bold; font-size:14px;">📋 LEYENDA ANALÍTICA DE CRUCE (SÁBANA 1 vs SÁBANA 2):</span><br>
                         <span style="color:#ff4d4d; font-weight:bold;">● ROJO:</span> Coincidencia espacio-temporal crítica. <b>Mismo lugar el mismo día</b> (Ficha Alfa/Bravo lado a lado).<br>
-                        <span style="color:#ffaa00; font-weight:bold;">● AMARILLO:</span> Coincidencia de interés recurrente. <b>Mismo lugar pero diferente día</b>.<br>
+                        <span style="color:#ffaa00; font-weight:bold;">● AMARILLO:</span> Coincidencia de interés recurrentes. <b>Mismo lugar pero diferente día</b>.<br>
                         <span style="color:#00ff88; font-weight:bold;">● VERDE:</span> Registro estándar de la Sábana Principal (Sin concurrencia detectada en S2).
                     </div>
                     """, unsafe_allow_html=True)
@@ -291,7 +292,8 @@ if uploaded_file:
 
                     popup_html = generar_html_popup_comparativo(r.to_dict(), reg_espejo_dict, tipo_alerta, titulo_alerta)
                     
-                    iframe = folium.IFrame(popup_html, width=420, height=160)
+                    # Ajustado ligeramente el alto para dar espacio a la fila de coordenadas (GEO)
+                    iframe = folium.IFrame(popup_html, width=420, height=175)
                     popup_obj = folium.Popup(iframe, parse_html=True)
 
                     folium.CircleMarker(
