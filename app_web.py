@@ -224,19 +224,17 @@ col_logo, col_titulo = st.columns([1, 4])
 
 with col_logo:
     dir_actual = os.path.dirname(os.path.abspath(__file__))
-    ruta_imagen = os.path.join(dir_actual, "logotipo.png")
+    # Esta es la línea crucial que debes actualizar:
+    ruta_imagen = os.path.join(dir_actual, "logotipo.png") 
     
     if os.path.exists(ruta_imagen):
         st.image(ruta_imagen, use_container_width=True)
     else:
-        st.error("⚠️ Falta el archivo 'logotipo.png' en la carpeta")
+        st.error("⚠️ Falta el archivo 'logotipo.png' en la carpeta sabana1")
 
 with col_titulo:
     st.title("🛰️ INTEL FORENSIC ANALYSIS SYSTEM")
     st.caption("CENTRO DE ANÁLISIS GEO-TELEFÓNICO | NIVEL CLASIFICADO")
-
-st.write("---")
-
 # =========================
 # PANEL DE CONTROL
 # =========================
