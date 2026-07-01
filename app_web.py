@@ -330,4 +330,4 @@ if uploaded_file:
         st.error(f"ERROR DE SISTEMA: {e}")
 
 st.markdown("---")
-st.caption("INTEL FORENSIC SYSTEM • UI MODE: COMMAND CENTER")
+st.caption("CODIGO CREADO POR: J - I - A - M")
